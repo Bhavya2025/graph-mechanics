@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    background-color: theme('colors.synth.bg');
+    color: theme('colors.synth.text');
+    font-family: theme('fontFamily.mono');
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+}
+
+@layer components {
+  /* Animated synthwave grid backdrop */
+  .synth-backdrop {
+    background-color: theme('colors.synth.bg');
+    background-image:
+      radial-gradient(ellipse 120% 80% at 50% -10%, rgba(124, 58, 237, 0.22), transparent 60%),
+      radial-gradient(ellipse 90% 60% at 50% 110%, rgba(255, 46, 136, 0.16), transparent 60%),
+      linear-gradient(rgba(45, 212, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(45, 212, 255, 0.05) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+  }
+
+  .panel {
+    background: linear-gradient(180deg, theme('colors.synth.panel'), theme('colors.synth.panel2'));
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    border-radius: 0.75rem;
+  }
+
+  .neon-text-pink {
+    color: theme('colors.synth.pink');
+    text-shadow: 0 0 6px rgba(255, 46, 136, 0.7), 0 0 16px rgba(255, 46, 136, 0.4);
+  }
+
+  .neon-text-cyan {
+    color: theme('colors.synth.cyan');
+    text-shadow: 0 0 6px rgba(45, 212, 255, 0.7), 0 0 16px rgba(45, 212, 255, 0.4);
+  }
+
+  /* Thin scrollbar in side panel */
+  .thin-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .thin-scroll::-webkit-scrollbar-thumb {
+    background: rgba(168, 85, 247, 0.4);
+    border-radius: 9999px;
+  }
+
+  /* CRT scanline overlay */
+  .scanlines::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.16) 0px,
+      rgba(0, 0, 0, 0.16) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    mix-blend-mode: overlay;
+    z-index: 30;
+  }
+
+  /* Retro perspective grid floor */
+  .grid-floor {
+    background-image:
+      linear-gradient(rgba(45, 212, 255, 0.5) 1.5px, transparent 1.5px),
+      linear-gradient(90deg, rgba(255, 46, 136, 0.35) 1.5px, transparent 1.5px);
+    background-size: 44px 44px;
+    animation: grid-scroll 1.4s linear infinite;
+    transform: perspective(340px) rotateX(68deg);
+    transform-origin: center top;
+  }
+
+  /* Chromatic-aberration neon title */
+  .title-chroma {
+    color: theme('colors.synth.text');
+    text-shadow:
+      -2px 0 6px rgba(255, 46, 136, 0.75),
+      2px 0 6px rgba(45, 212, 255, 0.75),
+      0 0 24px rgba(168, 85, 247, 0.55);
+  }
+}
+
+@keyframes grid-scroll {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 0 44px;
+  }
+}
