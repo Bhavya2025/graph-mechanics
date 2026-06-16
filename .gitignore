@@ -35,3 +35,6 @@ pnpm-debug.log*
 
 # Claude local settings (keep launch.json for the preview tool)
 .claude/settings.local.json
+
+# TypeScript incremental build info
+*.tsbuildinfo

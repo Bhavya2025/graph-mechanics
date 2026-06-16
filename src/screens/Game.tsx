@@ -1,18 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Info, Lightbulb } from 'lucide-react';
+import { Activity, ChevronLeft, Clock } from 'lucide-react';
 import type { GameCanvasHandle } from '../contracts';
-import { EquationInput } from '../components/EquationInput';
 import { GameCanvas } from '../components/GameCanvas';
-import { Header } from '../components/Header';
-import { Leaderboard } from '../components/Leaderboard';
-import { ModifierControls } from '../components/ModifierControls';
+import { GameUI } from '../components/GameUI';
 import { ResultModal } from '../components/ResultModal';
 import { LEVELS, LEVEL_COUNT } from '../levels/levelData';
 import { useCurrentLevel, useGameStore } from '../store/gameStore';
 
 const TICK_MS = 100;
 
+/**
+ * The play screen. The canvas is full-bleed (the primary focus) with a frosted-glass
+ * control panel and a slim HUD floating over it. It bridges store state to the canvas
+ * handle: curve morphing, jump-pad placement (click), launch/reset, timing and outcome.
+ */
 export function Game() {
   const navigate = useNavigate();
   const { levelId } = useParams();
@@ -21,15 +23,14 @@ export function Game() {
 
   const level = useCurrentLevel();
   const levelIndex = useGameStore((s) => s.levelIndex);
-  const latex = useGameStore((s) => s.latex);
   const curve = useGameStore((s) => s.curve);
   const ramp = useGameStore((s) => s.ramp);
-  const zone = useGameStore((s) => s.zone);
   const phase = useGameStore((s) => s.phase);
   const elapsedMs = useGameStore((s) => s.elapsedMs);
+  const attempts = useGameStore((s) => s.attempts);
 
   const loadLevel = useGameStore((s) => s.loadLevel);
-  const setEquation = useGameStore((s) => s.setEquation);
+  const setRamp = useGameStore((s) => s.setRamp);
   const tick = useGameStore((s) => s.tick);
   const win = useGameStore((s) => s.win);
   const lose = useGameStore((s) => s.lose);
@@ -41,20 +42,15 @@ export function Game() {
     if (target !== useGameStore.getState().levelIndex) loadLevel(target);
   }, [levelId, loadLevel]);
 
-  // Drive the canvas from store state.
+  // Real-time morphing: push the derived curve to the engine whenever it changes.
   useEffect(() => {
     if (curve) canvasRef.current?.setCurve(curve);
   }, [curve]);
 
+  // Jump-pad (Derivative Ramp) placement.
   useEffect(() => {
     canvasRef.current?.setRamp(ramp.enabled ? ramp.x : null);
   }, [ramp.enabled, ramp.x]);
-
-  useEffect(() => {
-    canvasRef.current?.setIntegralZone(
-      zone.enabled ? { xMin: zone.xMin, xMax: zone.xMax, effect: zone.effect } : null,
-    );
-  }, [zone.enabled, zone.xMin, zone.xMax, zone.effect]);
 
   useEffect(() => {
     if (phase === 'running') canvasRef.current?.launch();
@@ -69,52 +65,77 @@ export function Game() {
   }, [phase, tick]);
 
   useEffect(() => {
-    if (phase === 'running' && level.timeLimit && elapsedMs >= level.timeLimit * 1000) {
-      lose('timeout');
-    }
+    if (phase === 'running' && level.timeLimit && elapsedMs >= level.timeLimit * 1000) lose('timeout');
   }, [phase, elapsedMs, level.timeLimit, lose]);
 
-  const goNext = () => {
-    const nextIndex = (levelIndex + 1) % LEVEL_COUNT;
-    navigate(`/play/${LEVELS[nextIndex].id}`);
+  const goNext = () => navigate(`/play/${LEVELS[(levelIndex + 1) % LEVEL_COUNT].id}`);
+
+  const onCurveClick = (graphX: number) => {
+    if (phase === 'editing') setRamp({ enabled: true, x: graphX });
   };
 
+  const remaining = level.timeLimit ? Math.max(0, level.timeLimit - elapsedMs / 1000) : null;
+
   return (
-    <div className="synth-backdrop flex h-full w-full flex-col">
-      <Header onBack={() => navigate('/levels')} />
-      <main className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <section className="relative min-h-[45vh] flex-1 lg:min-h-0">
-          <GameCanvas ref={canvasRef} level={level} onWin={win} onLose={lose} />
-          <ResultModal
-            onReplay={() => useGameStore.getState().resetAttempt()}
-            onNext={goNext}
-            onScoreSubmitted={() => setLbVersion((v) => v + 1)}
-          />
-        </section>
+    <div className="relative h-full w-full overflow-hidden bg-synth-bg">
+      {/* Full-bleed play surface (the primary focus). */}
+      <GameCanvas ref={canvasRef} level={level} onWin={win} onLose={lose} onCurveClick={onCurveClick} />
 
-        <aside className="thin-scroll flex w-full shrink-0 flex-col gap-4 overflow-y-auto border-t border-synth-purple/20 bg-synth-panel/40 p-4 backdrop-blur lg:w-[24rem] lg:border-l lg:border-t-0">
-          <div className="panel p-4">
-            <h2 className="flex items-center gap-2 font-display text-sm font-bold tracking-widest text-synth-cyan">
-              <Info size={15} />
-              {level.name}
-            </h2>
-            <p className="mt-2 text-sm leading-relaxed text-synth-text/80">{level.description}</p>
-            {level.hint && (
-              <p className="mt-3 flex items-start gap-2 rounded-md bg-synth-amber/10 p-2.5 text-xs leading-relaxed text-synth-amber/90">
-                <Lightbulb size={14} className="mt-0.5 shrink-0" />
-                {level.hint}
-              </p>
-            )}
+      {/* Slim HUD, top-left. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-4">
+        <div className="pointer-events-auto flex items-center gap-3 rounded-xl border border-synth-purple/25 bg-synth-panel/40 px-3 py-2 backdrop-blur-xl">
+          <button
+            type="button"
+            onClick={() => navigate('/levels')}
+            aria-label="Back to level select"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-synth-text transition-colors hover:bg-synth-purple/20"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <div className="leading-tight">
+            <p className="font-display text-xs font-bold tracking-widest neon-text-pink">
+              GRAPH<span className="neon-text-cyan">MECHANICS</span>
+            </p>
+            <p className="text-[10px] uppercase tracking-widest text-synth-muted">
+              Lv {level.id} · {level.name}
+            </p>
           </div>
+        </div>
 
-          <div className="panel space-y-4 p-4">
-            <EquationInput value={latex} disabled={phase === 'running'} onChange={(r) => setEquation(r.latex, r.result)} />
-            <ModifierControls />
-          </div>
+        <div className="pointer-events-auto flex items-center gap-3 rounded-xl border border-synth-purple/25 bg-synth-panel/40 px-3 py-2 font-mono text-sm backdrop-blur-xl">
+          <span
+            className={`flex items-center gap-1.5 tabular-nums ${
+              remaining != null && remaining <= 3 ? 'animate-pulse text-synth-pink' : 'text-synth-cyan'
+            }`}
+          >
+            <Clock size={14} />
+            {remaining != null ? `${remaining.toFixed(1)}s` : `${(elapsedMs / 1000).toFixed(1)}s`}
+          </span>
+          <span className="flex items-center gap-1.5 text-synth-muted">
+            <Activity size={14} />
+            {attempts}
+          </span>
+        </div>
+      </div>
 
-          <Leaderboard levelId={level.id} version={lbVersion} />
-        </aside>
-      </main>
+      {/* Floating control panel: right on wide screens, bottom on narrow. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-4 sm:bottom-auto sm:right-0 sm:top-1/2 sm:left-auto sm:-translate-y-1/2 sm:justify-end">
+        <GameUI />
+      </div>
+
+      {/* Hint badge, bottom-left (hidden on small to avoid overlap). */}
+      {level.hint && (
+        <div className="pointer-events-none absolute bottom-4 left-4 hidden max-w-xs rounded-xl border border-synth-amber/20 bg-synth-panel/40 px-3 py-2 text-xs leading-relaxed text-synth-amber/90 backdrop-blur-xl lg:block">
+          {level.hint}
+        </div>
+      )}
+
+      <ResultModal
+        onReplay={() => useGameStore.getState().resetAttempt()}
+        onNext={goNext}
+        leaderboardVersion={lbVersion}
+        onScoreSubmitted={() => setLbVersion((v) => v + 1)}
+      />
     </div>
   );
 }

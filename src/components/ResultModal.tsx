@@ -5,6 +5,7 @@ import type { LossReason } from '../types';
 import { useCurrentLevel, useGameStore } from '../store/gameStore';
 import { LEVEL_COUNT } from '../levels/levelData';
 import { leaderboard } from '../services/leaderboard';
+import { Leaderboard } from './Leaderboard';
 
 function formatTime(ms: number): string {
   return `${(ms / 1000).toFixed(2)}s`;
@@ -23,10 +24,12 @@ export function ResultModal({
   onReplay,
   onNext,
   onScoreSubmitted,
+  leaderboardVersion,
 }: {
   onReplay: () => void;
   onNext: () => void;
   onScoreSubmitted: () => void;
+  leaderboardVersion: number;
 }) {
   const phase = useGameStore((s) => s.phase);
   const lossReason = useGameStore((s) => s.lossReason);
@@ -125,6 +128,12 @@ export function ResultModal({
                 </button>
               </form>
             )}
+          </div>
+        )}
+
+        {won && (
+          <div className="mt-5 text-left">
+            <Leaderboard levelId={level.id} version={leaderboardVersion} />
           </div>
         )}
 

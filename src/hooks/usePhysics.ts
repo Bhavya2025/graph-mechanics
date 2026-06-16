@@ -24,6 +24,9 @@ const LAUNCH_BOOST_FRAMES = 10;
 const BALL_RADIUS_GRAPH = 0.45;
 const CURVE_THICKNESS_PX = 7;
 const OUT_OF_BOUNDS_MARGIN = 160;
+/** Failsafe: an attempt that neither wins nor falls within this many frames is a loss
+ *  (prevents a ball oscillating on a curve from hanging forever). */
+const MAX_RUN_FRAMES = 60 * 14;
 const RAMP_LENGTH_GRAPH = 2.6;
 const RAMP_THICKNESS_PX = 10;
 
@@ -518,6 +521,10 @@ class PhysicsController {
     } else {
       this.stallFrames = 0;
     }
+
+    // Failsafe: an attempt that keeps moving but never resolves (oscillating on a
+    // curve) is a loss after the cap.
+    if (this.runFrames > MAX_RUN_FRAMES) this.finish(false, 'stalled');
   }
 
   /* ---- rendering ---- */
@@ -642,11 +649,14 @@ class PhysicsController {
     const ctx = this.ctx;
     ctx.save();
     ctx.shadowColor = '#2dd4ff';
-    ctx.shadowBlur = 12;
+    ctx.shadowBlur = 14;
     ctx.strokeStyle = '#2dd4ff';
     ctx.lineWidth = 3;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
+    // Glowing, animated dashed "ghost" line showing the terrain shape (Prompt 2).
+    ctx.setLineDash([11, 8]);
+    ctx.lineDashOffset = -this.frame * 0.6;
     for (const seg of this.curveSegmentsPx) {
       if (seg.length < 2) continue;
       ctx.beginPath();
@@ -654,6 +664,7 @@ class PhysicsController {
       for (let i = 1; i < seg.length; i++) ctx.lineTo(seg[i].x, seg[i].y);
       ctx.stroke();
     }
+    ctx.setLineDash([]);
     ctx.restore();
   }
 

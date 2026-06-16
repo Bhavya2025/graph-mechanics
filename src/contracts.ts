@@ -37,23 +37,6 @@ export interface CurveResult {
 }
 
 /* ------------------------------------------------------------------ *
- * Math UX → UI  (the equation input component)
- * ------------------------------------------------------------------ */
-
-export interface EquationInputResult {
-  /** Raw LaTeX from the math field. */
-  latex: string;
-  /** Parsed + marched curve in graph space. */
-  result: CurveResult;
-}
-
-export interface EquationInputProps {
-  value: string; // latex
-  disabled?: boolean;
-  onChange: (r: EquationInputResult) => void;
-}
-
-/* ------------------------------------------------------------------ *
  * UI ↔ Physics  (the canvas)
  * ------------------------------------------------------------------ */
 
@@ -81,6 +64,8 @@ export interface GameCanvasProps {
   level: Level;
   onWin: (stats: WinStats) => void;
   onLose: (reason: LossReason) => void;
+  /** Player clicked the play area at this graph x (used to drop a jump-pad on the curve). */
+  onCurveClick?: (graphX: number) => void;
 }
 
 /* ------------------------------------------------------------------ *

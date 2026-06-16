@@ -1,30 +1,37 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { CurveResult, GamePhase, LossReason } from '../contracts';
-import type { IntegralZoneConfig, RampConfig } from '../types';
+import type { Level, RampConfig } from '../types';
 import { getLevel, LEVEL_COUNT, LEVELS } from '../levels/levelData';
 import { CURVE_DOMAIN } from '../math/coordinates';
-import { generateImplicitCurve } from '../math/implicitParser';
-
-/** Parse an equation to a graph-space curve (used for the suggested equation on load). */
-function parseLatex(latex: string): CurveResult {
-  return generateImplicitCurve(latex, CURVE_DOMAIN);
-}
+import { evaluateTemplateCurve } from '../math/mathEvaluator';
 
 /**
- * Global game state (Zustand) — the single source of truth shared by every screen and
- * the canvas orchestration. Replaces the former Context+reducer. `bestTimes` and
- * `solved` are persisted to localStorage; transient attempt state is not.
+ * Global game state (Zustand). The player shapes the terrain with sliders, so the source
+ * of truth is the per-level template plus the current `variables`; `curve` is derived
+ * from them via the template evaluator. `bestTimes`/`solved` persist to localStorage.
  */
+
+/** Slider defaults for a level → the starting variable values. */
+function defaultVariables(level: Level): Record<string, number> {
+  const vars: Record<string, number> = {};
+  for (const s of level.template.sliders) vars[s.key] = s.default;
+  return vars;
+}
+
+/** Sample the level's template at the given variables into a physics-ready curve. */
+function deriveCurve(level: Level, variables: Record<string, number>): CurveResult {
+  return evaluateTemplateCurve(level.template.expr, variables, CURVE_DOMAIN);
+}
 
 interface GameState {
   levelIndex: number;
-  /** Raw LaTeX from the math field. */
-  latex: string;
-  /** Parsed curve (graph space) or null; `curve.error` holds parse errors. */
+  /** Current slider values keyed by the template's variable names. */
+  variables: Record<string, number>;
+  /** Terrain curve derived from the template + variables. */
   curve: CurveResult | null;
+  /** Derivative jump-pad placed by clicking the curve. */
   ramp: RampConfig;
-  zone: IntegralZoneConfig;
   phase: GamePhase;
   lossReason: LossReason;
   elapsedMs: number;
@@ -36,9 +43,10 @@ interface GameState {
 interface GameActions {
   loadLevel: (index: number) => void;
   nextLevel: () => void;
-  setEquation: (latex: string, curve: CurveResult) => void;
+  /** Move one slider; the curve re-derives instantly (real-time morphing). */
+  setVariable: (key: string, value: number) => void;
+  /** Place / move the jump-pad (or clear it with `enabled:false`). */
   setRamp: (patch: Partial<RampConfig>) => void;
-  setZone: (patch: Partial<IntegralZoneConfig>) => void;
   launch: () => void;
   resetAttempt: () => void;
   win: () => void;
@@ -48,20 +56,16 @@ interface GameActions {
 
 export type GameStore = GameState & GameActions;
 
-function freshModifiers(): { ramp: RampConfig; zone: IntegralZoneConfig } {
-  return {
-    ramp: { enabled: false, x: 0 },
-    zone: { enabled: false, xMin: -3, xMax: 3, effect: 'buoyancy' },
-  };
-}
+const initialLevel = LEVELS[0];
+const initialVars = defaultVariables(initialLevel);
 
 export const useGameStore = create<GameStore>()(
   persist(
     (set, get) => ({
       levelIndex: 0,
-      latex: LEVELS[0].suggestedEquation ?? '',
-      curve: parseLatex(LEVELS[0].suggestedEquation ?? ''),
-      ...freshModifiers(),
+      variables: initialVars,
+      curve: deriveCurve(initialLevel, initialVars),
+      ramp: { enabled: false, x: 0 },
       phase: 'editing',
       lossReason: null,
       elapsedMs: 0,
@@ -72,12 +76,12 @@ export const useGameStore = create<GameStore>()(
       loadLevel: (index) => {
         const i = Math.max(0, Math.min(index, LEVEL_COUNT - 1));
         const level = LEVELS[i];
-        const latex = level.suggestedEquation ?? '';
+        const variables = defaultVariables(level);
         set({
           levelIndex: i,
-          latex,
-          curve: parseLatex(latex),
-          ...freshModifiers(),
+          variables,
+          curve: deriveCurve(level, variables),
+          ramp: { enabled: false, x: 0 },
           phase: 'editing',
           lossReason: null,
           elapsedMs: 0,
@@ -87,13 +91,17 @@ export const useGameStore = create<GameStore>()(
 
       nextLevel: () => get().loadLevel((get().levelIndex + 1) % LEVEL_COUNT),
 
-      setEquation: (latex, curve) => set({ latex, curve }),
+      setVariable: (key, value) => {
+        const s = get();
+        const variables = { ...s.variables, [key]: value };
+        set({ variables, curve: deriveCurve(getLevel(s.levelIndex), variables) });
+      },
+
       setRamp: (patch) => set((s) => ({ ramp: { ...s.ramp, ...patch } })),
-      setZone: (patch) => set((s) => ({ zone: { ...s.zone, ...patch } })),
 
       launch: () => {
         const s = get();
-        if (s.curve?.error || !s.curve) return;
+        if (!s.curve || s.curve.error) return;
         set({ phase: 'running', lossReason: null, elapsedMs: 0, attempts: s.attempts + 1 });
       },
 

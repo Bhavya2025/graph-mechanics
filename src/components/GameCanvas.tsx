@@ -9,7 +9,7 @@ import {
 } from 'react';
 import type { GameCanvasHandle, GameCanvasProps } from '../contracts';
 import { DEFAULT_LAUNCH_SPEED, usePhysics } from '../hooks/usePhysics';
-import { createViewTransform } from '../math/coordinates';
+import { createViewTransform, pixelToGraph } from '../math/coordinates';
 
 /**
  * The canvas + physics surface. Owns the Matter.js controller and the responsive
@@ -18,7 +18,7 @@ import { createViewTransform } from '../math/coordinates';
  * component holds no game state of its own beyond the active `level`.
  */
 export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function GameCanvas(
-  { level, onWin, onLose },
+  { level, onWin, onLose, onCurveClick },
   ref,
 ) {
   const physics = usePhysics({ onWin, onLose });
@@ -77,8 +77,19 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
     [physics, level.launchSpeed],
   );
 
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!onCurveClick || !transform || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const graph = pixelToGraph({ x: e.clientX - rect.left, y: e.clientY - rect.top }, transform);
+    onCurveClick(graph.x);
+  };
+
   return (
-    <div ref={containerRef} className="relative h-full w-full overflow-hidden">
+    <div
+      ref={containerRef}
+      onClick={handleClick}
+      className="relative h-full w-full cursor-crosshair overflow-hidden"
+    >
       <canvas
         ref={physics.canvasRef}
         className="absolute inset-0 h-full w-full"

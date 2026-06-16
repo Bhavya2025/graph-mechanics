@@ -43,6 +43,29 @@ export interface EnemyConfig {
   radius: number;
 }
 
+/**
+ * One slider exposed to the player. `key` is the variable name substituted into the
+ * level's template expression; `label` is the friendly, math-free name shown in the UI.
+ */
+export interface SliderDef {
+  key: string;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  default: number;
+}
+
+/**
+ * A parametric curve template. The player shapes the terrain by dragging sliders for the
+ * template's variables (e.g. `A * (x - H)^2 + K` with sliders A/H/K) — no typing of raw
+ * equations. The physics terrain morphs in real time as the sliders change.
+ */
+export interface LevelTemplate {
+  expr: string;
+  sliders: SliderDef[];
+}
+
 export interface Level {
   id: number;
   name: string;
@@ -57,8 +80,8 @@ export interface Level {
   targetRadius?: number;
   obstacles: Obstacle[];
   enemy?: EnemyConfig;
-  /** Pre-filled equation suggestion shown when the level loads. */
-  suggestedEquation?: string;
+  /** The parametric curve the player shapes with sliders. */
+  template: LevelTemplate;
   /**
    * Horizontal launch speed in graph-units/second, applied toward the target's x
    * direction the moment the ball drops. Gives the ball the surplus energy needed to
